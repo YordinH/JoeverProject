@@ -1,0 +1,119 @@
+import requests
+import tkinter as tk
+from tkinter import ttk, messagebox
+from groq import Groq
+
+
+client = Groq(api_key="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")
+
+
+api_key = "GCpzG2cM5Z48sKWj7yJqjsEQcwFzZDNl"
+
+def analyze_companies():
+    
+    tickers = company_entry.get().split(',')
+    year = int(company_year_entry.get().strip())
+    quarter = int(company_quarter_entry.get().strip())
+
+    
+    api_url = 'https://api.api-ninjas.com/v1/earningstranscript'
+
+    
+    summaries = {}
+
+   
+    for ticker in tickers:
+        ticker = ticker.strip()
+        params = {
+            "ticker": ticker,
+            "year": year,
+            "quarter": quarter,
+            "apikey": api_key
+        }
+
+        # Request the earnings transcript for each company
+        response = requests.get(api_url, params=params)
+
+        if response.status_code == 200:
+            company_data = response.json()
+            
+            # Model Prompt
+            content = (
+                f"Please summarize the {ticker} earnings call. Focus on key points such as important speakers, "
+                f"revenue figures, product performance, and future plans. Also include other specific details."
+                + company_data['transcript']
+            )
+
+            
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": content,
+                    }
+                ],
+                model="llama-3.1-8b-instant",
+            )
+
+           
+            summaries[ticker] = chat_completion.choices[0].message.content
+        else:
+            messagebox.showerror("Error", f"Failed to retrieve data for {ticker}: {response.status_code}")
+            return
+
+   
+    comparison_content = "Compare the following earnings call summaries:\n\n"
+    for ticker, summary in summaries.items():
+        comparison_content += f"{ticker}:\n{summary}\n\n"
+
+    comparison_content += (
+        "Based on the summaries above, provide a comparative analysis. Discuss which company performed better "
+        "in terms of revenue, product performance, and future strategy. Highlight any key differences and similarities."
+    )
+
+   
+    comparison_completion = client.chat.completions.create(
+        messages=[
+            {
+                "role": "user",
+                "content": comparison_content,
+            }
+        ],
+        model="llama-3.1-8b-instant",
+    )
+
+    
+    messagebox.showinfo("Comparative Analysis", comparison_completion.choices[0].message.content)
+
+
+root = tk.Tk()
+root.geometry('1280x720')
+root.title('Comparative Analysis')
+
+row_frame = tk.Frame(root)
+row_frame.pack(pady=20)
+
+
+company_input = tk.Label(master=row_frame, text="Enter company symbols (comma-separated, e.g., PFG, AAPL):")
+company_input.pack()
+company_entry = tk.Entry(master=row_frame, width=150)
+company_entry.pack()
+
+
+company_year_input = tk.Label(master=row_frame, text="Enter year (e.g., 2024):")
+company_year_input.pack()
+company_year_entry = tk.Entry(master=row_frame, width=150)
+company_year_entry.pack()
+
+
+company_quarter_input = tk.Label(master=row_frame, text="Enter quarter (1-4):")
+company_quarter_input.pack()
+company_quarter_entry = tk.Entry(master=row_frame, width=150)
+company_quarter_entry.pack()
+
+
+analyze_button = tk.Button(master=row_frame, text="Analyze Earnings Calls", command=analyze_companies)
+analyze_button.pack(pady=20)
+
+
+root.mainloop()
