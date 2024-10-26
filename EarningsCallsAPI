@@ -1,0 +1,30 @@
+import requests
+
+
+api_key = "GCpzG2cM5Z48sKWj7yJqjsEQcwFzZDNl"
+
+
+ticker = input("Enter the ticker symbol (e.g., PFG): ").strip() 
+year = int(input("Enter the year (e.g., 2024): ").strip())
+quarter = int(input("Enter the quarter (1-4): ").strip())
+
+
+params = {
+    "ticker": ticker,  
+    "year": year,
+    "quarter": quarter,
+    "apikey": api_key
+}
+
+
+api_url = 'https://api.api-ninjas.com/v1/earningstranscript'
+
+
+response = requests.get(api_url, params=params)
+
+# Handle the response
+if response.status_code == 200:
+    company_data = response.json()  
+    print(company_data)
+else:
+    print(f"Failed to retrieve data: {response.status_code}")
