@@ -5,7 +5,7 @@ from groq import Groq
 
 
 # Initialize Groq client with your API key
-client = Groq(api_key="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")
+client = Groq(api_key="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")
 
 # Transcript API key
 api_key = "GCpzG2cM5Z48sKWj7yJqjsEQcwFzZDNl"
