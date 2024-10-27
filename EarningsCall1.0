@@ -1,0 +1,166 @@
+import requests
+import tkinter as tk
+from tkinter import ttk, messagebox
+from groq import Groq
+
+# Initialize Groq client with your API key
+client = Groq(api_key="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")
+
+# Transcript API key
+api_key = "GCpzG2cM5Z48sKWj7yJqjsEQcwFzZDNl"
+
+# List to store summaries for ranking
+stored_summaries = []
+
+# Define a prompt template
+def generate_prompt(ticker, transcript):
+    return (
+        f"Please summarize the earnings call for {ticker}. Focus on revenue figures, "
+        f"product performance, and future plans:\n\n{transcript}"
+    )
+
+# Function to handle summarization of up to two companies
+def generate_summaries():
+    # Get the CSV input and split into up to two tickers
+    tickers = company_entry.get().split(',')
+    if len(tickers) > 2:
+        messagebox.showerror("Error", "Please enter up to two ticker symbols only.")
+        return
+
+    year = int(company_year_entry.get().strip())
+    quarter = int(company_quarter_entry.get().strip())
+
+    api_url = 'https://api.api-ninjas.com/v1/earningstranscript'
+    summaries = []
+
+    for ticker in tickers:
+        ticker = ticker.strip()
+        params = {
+            "ticker": ticker,
+            "year": year,
+            "quarter": quarter,
+            "apikey": api_key
+        }
+
+        response = requests.get(api_url, params=params)
+
+        if response.status_code == 200:
+            company_data = response.json()
+            transcript = company_data['transcript']
+            prompt_text = generate_prompt(ticker, transcript)
+
+            # Request a summary from the Groq model
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt_text,
+                    }
+                ],
+                model="llama-3.1-8b-instant",
+            )
+
+            # Store the summary result
+            summary_text = chat_completion.choices[0].message.content
+            summaries.append((ticker, summary_text))
+            stored_summaries.append({"ticker": ticker, "summary": summary_text})
+
+        else:
+            messagebox.showerror("Error", f"Failed to retrieve data for {ticker}: {response.status_code}")
+            return
+
+    # Display each summary in its own tab
+    for ticker, summary in summaries:
+        display_results(ticker, summary)
+
+# Function to display results in tabs
+def display_results(ticker, results):
+    result_tab = ttk.Frame(notebook)
+    notebook.add(result_tab, text=f"Results for {ticker}")
+
+    results_text = tk.Text(result_tab, wrap=tk.WORD, height=30, width=150)
+    results_text.pack(expand=True, fill='both')
+    results_text.insert(tk.END, results)
+
+    scrollbar = tk.Scrollbar(result_tab, command=results_text.yview)
+    results_text['yscrollcommand'] = scrollbar.set
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+# Function to generate rankings based on stored summaries
+def generate_ranking():
+    if len(stored_summaries) < 2:
+        messagebox.showerror("Error", "At least two summaries are needed for ranking.")
+        return
+
+    # Build prompt for comparative ranking
+    ranking_prompt = "Compare the following earnings call summaries and rank these companies based on revenue, product performance, and future plans:\n\n"
+    for summary in stored_summaries:
+        ranking_prompt += f"{summary['ticker']}:\n{summary['summary']}\n\n"
+
+    ranking_prompt += (
+        "Based on the summaries, rank the companies in order of overall performance, "
+        "starting with the highest performer. Explain key reasons for the rankings."
+    )
+
+    # Request a ranking analysis from the Groq model
+    ranking_completion = client.chat.completions.create(
+        messages=[
+            {
+                "role": "user",
+                "content": ranking_prompt,
+            }
+        ],
+        model="llama-3.1-8b-instant",
+    )
+
+    # Display the ranking result
+    display_ranking_results(ranking_completion.choices[0].message.content)
+
+# Function to display ranking results
+def display_ranking_results(results):
+    result_tab = ttk.Frame(notebook)
+    notebook.add(result_tab, text="Ranking Results")
+
+    results_text = tk.Text(result_tab, wrap=tk.WORD, height=30, width=150)
+    results_text.pack(expand=True, fill='both')
+    results_text.insert(tk.END, results)
+
+    scrollbar = tk.Scrollbar(result_tab, command=results_text.yview)
+    results_text['yscrollcommand'] = scrollbar.set
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+# Main application window
+root = tk.Tk()
+root.geometry('1920x1080')
+root.title('Earnings Call Summary Generator')
+
+notebook = ttk.Notebook(root)
+notebook.pack(expand=True, fill='both')
+
+row_frame = tk.Frame(notebook)
+notebook.add(row_frame, text="Input")
+
+company_input = tk.Label(master=row_frame, text="Enter up to two company symbols (comma-separated, e.g., PFG, AAPL):")
+company_input.pack()
+company_entry = tk.Entry(master=row_frame, width=150)
+company_entry.pack()
+
+company_year_input = tk.Label(master=row_frame, text="Enter year (e.g., 2024):")
+company_year_input.pack()
+company_year_entry = tk.Entry(master=row_frame, width=150)
+company_year_entry.pack()
+
+company_quarter_input = tk.Label(master=row_frame, text="Enter quarter (1-4):")
+company_quarter_input.pack()
+company_quarter_entry = tk.Entry(master=row_frame, width=150)
+company_quarter_entry.pack()
+
+# Button to generate summaries
+summary_button = tk.Button(master=row_frame, text="Generate Summaries", command=generate_summaries)
+summary_button.pack(pady=20)
+
+# Button to generate ranking
+ranking_button = tk.Button(master=row_frame, text="Generate Ranking", command=generate_ranking)
+ranking_button.pack(pady=20)
+
+root.mainloop()
